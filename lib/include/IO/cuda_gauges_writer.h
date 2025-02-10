@@ -1,22 +1,3 @@
-// ======================================================================================
-// Name                :    High-Performance Integrated Modelling System
-// Description         :    This code pack provides a generic framework for developing 
-//                          Geophysical CFD software. Legacy name: GeoClasses
-// ======================================================================================
-// Version             :    1.0.1 
-// Author              :    Xilin Xia
-// Create Time         :    2014/10/04
-// Update Time         :    2020/04/26
-// ======================================================================================
-// LICENCE: GPLv3 
-// ======================================================================================
-
-/*!
-\file cuda_gauges_writer.h
-\brief Header file for cuda simple field writer class
-
-*/
-
 #ifndef CUDA_GAUGES_WRITER_H
 #define CUDA_GAUGES_WRITER_H
 
@@ -73,23 +54,30 @@ namespace GC{
             }
           }
         }
-        output_file.open(output_filename);
+        for (Flag gauge_id = 0; gauge_id < gauge_postions.size(); ++gauge_id){
+          std::ostringstream filename;
+          filename << output_filename << "_gauge_" << gauge_id << ".dat";
+          std::ofstream output_file;
+          output_file.open(filename.str());
+          if (!output_file.is_open()) {
+            std::cerr << "Unable to open output file for gauge " << gauge_id << std::endl;
+            return;
+          }
+          output_files.push_back(std::move(output_file));
+        }
         phi_ptr = phi.data.dev_ptr();
       }
     }
 
     void write(Scalar t){
       if (gauge_cell_ids.size() > 0){
-        output_file << t;
         for (Flag index = 0; index < gauge_cell_ids.size(); ++index){
           T phi_tmp;
           Flag cell_id = gauge_cell_ids[index];
           checkCuda(cudaMemcpy(&phi_tmp, phi_ptr + cell_id, sizeof(T), cudaMemcpyDeviceToHost));
-          output_file << " " << phi_tmp;
+          output_files[index] << t << " " << phi_tmp << std::endl;
         }
-        output_file << std::endl;
       }
-      
     }
 
   private:
@@ -99,7 +87,7 @@ namespace GC{
     std::vector<Vector> gauge_postions;
     std::vector<Scalar> gauge_distance2cell;
     std::vector<Flag> gauge_cell_ids;
-    std::ofstream output_file;
+    std::vector<std::ofstream> output_files;
 
   };
 
