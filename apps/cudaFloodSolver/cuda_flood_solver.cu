@@ -1,27 +1,9 @@
-// ======================================================================================
-// Name                :    High-Performance Integrated Modelling System
-// Description         :    This code pack provides a generic framework for developing 
-//                          Geophysical CFD software. Legacy name: GeoClasses
-// ======================================================================================
-// Version             :    1.0.1 
-// Author              :    Xilin Xia
-// Create Time         :    2014/10/04
-// Update Time         :    2020/04/26
-// ======================================================================================
-// LICENCE: GPLv3 
-// ======================================================================================
-
-
-/*!
-\file urban_flood_simulator.cu
-\brief Source file for component test
-
-*/
-
-
 #include <iostream>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
+#include <fstream>
+#include <vector>
+#include <sstream>
 
 //These header files are the primitive types
 #include "Flag.h"
@@ -270,6 +252,32 @@ int main(){
   h.update_boundary_source("input/field/", "h");
   hU.update_boundary_source("input/field/", "hU");
 
+  // Read position indices from file
+  std::ifstream position_indices_file("input/position_indices.dat");
+  std::vector<int> position_indices;
+  if (position_indices_file.is_open()) {
+    int index;
+    while (position_indices_file >> index) {
+      position_indices.push_back(index);
+    }
+    position_indices_file.close();
+  } else {
+    std::cerr << "Unable to open position indices file" << std::endl;
+    return 1;
+  }
+
+  // Create output files for each monitoring point
+  std::vector<std::ofstream> output_files(position_indices.size());
+  for (size_t i = 0; i < position_indices.size(); ++i) {
+    std::ostringstream filename;
+    filename << "output/monitoring_point_" << position_indices[i] << ".dat";
+    output_files[i].open(filename.str());
+    if (!output_files[i].is_open()) {
+      std::cerr << "Unable to open output file for monitoring point " << position_indices[i] << std::endl;
+      return 1;
+    }
+  }
+
   //Main loop
   do{
 
@@ -384,6 +392,14 @@ int main(){
       backup_time += backup_interval;
     }
 
+    // Write data for position indices to separate output files
+    for (size_t i = 0; i < position_indices.size(); ++i) {
+      int index = position_indices[i];
+      if (index >= 0 && index < h.data.size()) {
+        Scalar water_depth = h.data.host_ptr()[index];
+        output_files[i] << time_controller.current() << " " << water_depth << std::endl;
+      }
+    }
 
   } while (!time_controller.is_end());
 
@@ -396,7 +412,11 @@ int main(){
   raster_writer.write(h_max, "h_max", t_all);
   std::cout << "Total runtime " << total_runtime << "ms" << std::endl;
 
+  // Close output files for each monitoring point
+  for (auto& file : output_files) {
+    file.close();
+  }
+
   return 0;
 
 }
-

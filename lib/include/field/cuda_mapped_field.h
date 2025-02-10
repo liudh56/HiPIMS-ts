@@ -1,25 +1,3 @@
-// ======================================================================================
-// Name                :    GeoClasses : Generic Geophysical Flow Modelling Framework
-// Description         :    This code pack provides a generic framework for developing 
-//                          Geophysical CFD software.
-// ======================================================================================
-// Version             :    0.1 
-// Author              :    Xilin Xia (PhD candidate in Newcastle University)
-// Create Time         :    2014/10/04
-// Update Time         :    2015/10/09
-// ======================================================================================
-// Copyright @ Xilin Xia 2015 . All rights reserved.
-// ======================================================================================
-
-/*!
- \file cuda_mapped_field.h
- \brief Header file for cuda mapped field class 
-
- \version 0.1
- \author xilin xia
-*/ 
-
-
 #ifndef CUDA_MAPPED_FIELD_H
 #define CUDA_MAPPED_FIELD_H
 
@@ -32,7 +10,6 @@
 #include "cuda_arrays.h"
 #include "cuda_mesh_fv.h"
 #include "Flag.h"
-//#include "cuda_boundary.h"
 #include "cuda_kernel_launch_parameters.h"
 #include <thrust/device_vector.h>
 
@@ -54,7 +31,6 @@ namespace GC{
       Flag secondary_type = _boundary_type.gety();
       Flag source_id = _boundary_type.getz();
       if (0 == primary_type){ //cannot evolve
-//        std::cout << "Type is 0, can not be updated!" << std::endl;
       }
       else if (1 == primary_type){ //fixed gradient 
 
@@ -114,6 +90,16 @@ namespace GC{
     while (index < data_length){
       auto source_id = region_mask[index];
       data[index] = data_source_current[source_id];
+      index += blockDim.x * gridDim.x;
+    }
+  }
+
+  template <typename T>
+  __global__ void get_data_for_indices_kernel(T* data, int* indices, T* output_data, unsigned int indices_length) {
+    unsigned int index = blockDim.x * blockIdx.x + threadIdx.x;
+    while (index < indices_length) {
+      int data_index = indices[index];
+      output_data[index] = data[data_index];
       index += blockDim.x * gridDim.x;
     }
   }
@@ -330,6 +316,21 @@ namespace GC{
         update_boundary_values();
       }
 
+      void get_data_for_indices(const std::vector<int>& indices, std::vector<T>& output_data) {
+        thrust::device_vector<int> dev_indices(indices.begin(), indices.end());
+        thrust::device_vector<T> dev_output_data(indices.size());
+
+        get_data_for_indices_kernel<<<BLOCKS_PER_GRID, THREADS_PER_BLOCK>>>(
+          data.dev_ptr(),
+          thrust::raw_pointer_cast(dev_indices.data()),
+          thrust::raw_pointer_cast(dev_output_data.data()),
+          indices.size()
+        );
+
+        output_data.resize(indices.size());
+        thrust::copy(dev_output_data.begin(), dev_output_data.end(), output_data.begin());
+      }
+
     public:
       std::shared_ptr<cuUnstructuredFvMesh> mesh;
     public:
@@ -350,7 +351,6 @@ namespace GC{
       std::vector<unsigned int> data_source_cursors;
   };
 
-}//--end of namespace GC----------
+}
 
 #endif
-

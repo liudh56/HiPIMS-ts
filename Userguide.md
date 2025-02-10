@@ -140,6 +140,7 @@ more boundary conditions. The fundamental files are introduced in Table 1.
 | Other files: |  |  |
 | *times\_setup.dat* | Four values respectively indicate model start time, total time, output interval, and backup interval in seconds |  |
 | *device\_setup.dat* | Values to define the ID of GPU devices that used to run model in each subdomain. |  |
+| *position_indices.dat* | Position indices | Indices of positions to read water depth, flow rate, and flow velocity data from |
 
 *Note: The IntegratedShallowFlowSolver for landslide movement only requires the first three input files*
 
